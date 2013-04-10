@@ -1,0 +1,7 @@
+{
+  "venv": "", 
+  "project-type": "NINJA-Plugin-Project", 
+  "name": "NINJA-AutoIndent", 
+  "license": "GNU General Public License v3", 
+  "description": "An attempt to create a plugin for NINJA-IDE that creates indentation functionality similar to that in emacs."
+}
