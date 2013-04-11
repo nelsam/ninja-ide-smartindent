@@ -14,15 +14,59 @@ class AutoIndent(plugin.Plugin):
     Stores whether or not the previous command was an indent.
     """
     indent_mode = False
+    currentcontext = None
+    currentindent = None
+
+    """
+    Characters that cause continuation lines.
+    """
+    CONTINUATION_CHARACTERS = (
+        ('[', ']'),
+        ('(', ')'),
+        ('{', '}'),
+        )
+
+    """
+    Characters that cause us to ignore lines.
+    """
+    MULTILINE_QUOTE_SEQUENCES = (
+        '"""',
+        "'''",
+        )
 
     def initialize(self):
         """
         Sets up the environment for the auto indenter.
         """
         self.editor_service = self.locator.get_service('editor')
-        #self.editor_service.editorKeyPressEvent.connect(self.check_indent)
+        self.editor_service.editorKeyPressEvent.connect(self.check_mode)
+        self.editor_service.currentTabChanged.connect(self.load_context)
         self.editor = self.editor_service.get_editor()
+        self.indent_str = ' ' * self.editor.indent
+        if self.editor.useTabs:
+            self.indent_str = '\t'
+        self.currentcontext = None
+        self.currentindent = 0
         self.editor.preKeyPress[Qt.Key_Tab] = self.indent
+
+    @property
+    def context(self):
+        if not hasattr(self, '_context'):
+            self.load_context()
+
+        return self._context
+
+    def load_context(self, filename=None):
+        doc = self.editor.document()
+        block = doc.begin()
+
+        self._context = {}
+        while block != doc.end():
+            self.parse_line(block)
+
+    def parse_line(self, block):
+        context = []
+        block_text = block.text()
 
     def check_indent(self, event):
         """
@@ -31,9 +75,49 @@ class AutoIndent(plugin.Plugin):
         cycle through possible indentation levels.
         """
         if event.key() == Qt.Key_Tab:
-            self.indent()
+            self.indent_mode = True
         elif self.indent_mode:
             self.indent_mode = False
+
+    def find_line_start(self, block):
+
+
+    def find_previous_indenter(self, block):
+        """
+        Locates the most recently previous block that affected
+        this block's indentation.
+        """
+        block_indent = self.current_indent(block)
+        while True:
+            block = block.previous()
+            if ':' in block.text():
+                start_block = self.find_line_start(block)
+                start_indent = self.current_indent(block)
+                if start_indent < block_indent:
+                    break
+        return block
+
+    def find_base_block(self, block):
+        """
+        Finds the base (unindented) block most recent to this one.
+        """
+        text = str(block.text())
+        while text.startswith(self.indent_str):
+            block = self.find_previous_indenter(block)
+            text = str(block.text)
+
+        return block
+
+    def load_indent_lines(self, block):
+        """
+        Loads any lines that change the indentation level into a list,
+        each one containing a list of possible indentation levels.
+        """
+        cursor = self.editor.textCursor()
+        scope = []
+        while True:
+            if str(block.text()).endswith(':'):
+                # Increases indent
 
     def current_indent(self, block):
         """
@@ -49,7 +133,7 @@ class AutoIndent(plugin.Plugin):
 
         return indent - 1
 
-    def find_default_indent(self, cursor, block):
+    def find_max_indent(self, cursor, block):
         """
         Finds the default (i.e. most likely) indentation level
         for a given block of text.
